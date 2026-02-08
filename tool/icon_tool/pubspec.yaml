@@ -1,0 +1,10 @@
+name: icon_tool
+description: Tool to generate padded adaptive foreground icon
+environment:
+  sdk: ">=2.18.0 <4.0.0"
+
+dependencies:
+  image: ^4.0.17
+
+executables:
+  pad_icon: bin/pad_icon.dart
