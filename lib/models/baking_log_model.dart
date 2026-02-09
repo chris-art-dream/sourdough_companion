@@ -83,7 +83,7 @@ class BakingLogEntry {
 }
 
 class BakingLogService extends ChangeNotifier {
-  List<BakingLogEntry> _logs = [];
+  final List<BakingLogEntry> _logs = [];
 
   List<BakingLogEntry> get logs => _logs;
 

@@ -1,18 +1,12 @@
-
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+// DEINE IMPORTS
 import 'recipe_data.dart' as data;
-import 'timer_page.dart';
-import 'active_timers_page.dart';
 import 'calculator_page.dart';
-import 'pages/dough_temperature_calculator_page.dart';
-import 'pages/intelligent_calculator_page.dart';
-import 'pages/baking_log_page.dart';
-import 'settings_page.dart';
+import 'active_timers_page.dart';
+import 'timer_page.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
   runApp(const SourdoughApp());
 }
 
@@ -22,37 +16,21 @@ class SourdoughApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Mein Sauerteighelfer',
       debugShowCheckedModeBanner: false,
+      title: 'Sauerteig-Assistent',
       theme: ThemeData(
-  useMaterial3: true,
-
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: Colors.brown,
-  ),
-
-  appBarTheme: const AppBarTheme(
-    backgroundColor: Colors.brown,
-    foregroundColor: Colors.white,
-    titleTextStyle: TextStyle(
-      color: Colors.white,
-      fontSize: 20,
-      fontWeight: FontWeight.w500,
-    ),
-  ),
-
-  navigationBarTheme: const NavigationBarThemeData(
-    backgroundColor: Colors.brown,
-    labelTextStyle: WidgetStatePropertyAll(
-      TextStyle(color: Colors.white),
-    ),
-    iconTheme: WidgetStatePropertyAll(
-      IconThemeData(color: Colors.white),
-    ),
-  ),
-),
-
-
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF7A4A32),
+          primary: const Color(0xFF7A4A32),
+          surface: const Color(0xFFF7F2EE),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF7A4A32),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+      ),
       home: const MainNavigation(),
     );
   }
@@ -68,14 +46,8 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = const [
-    HomeScreen(),
-    RecipeListPage(),
-    CalculatorPage(),
-    ActiveTimersPage(),
-  ];
-
-  void _onItemTapped(int index) {
+  // Diese Methode erlaubt es Unterseiten, den Tab zu wechseln
+  void _onDestinationSelected(int index) {
     setState(() {
       _selectedIndex = index;
     });
@@ -83,710 +55,214 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _pages[_selectedIndex],
+    // Seiten-Liste direkt im Build, damit der Callback übergeben werden kann
+    final List<Widget> _pages = [
+      HomePage(onNavigateToTab: _onDestinationSelected),
+      const RecipeListPage(),
+      const CalculatorPage(),
+      const ActiveTimersPage(),
+    ];
 
+    return Scaffold(
+      // IndexedStack bewahrt den Status (z.B. Eingaben im Rechner) beim Tab-Wechsel
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
       bottomNavigationBar: NavigationBar(
-        backgroundColor: Colors.brown,
-        indicatorColor: Colors.brown.shade300,
         selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped,
-        labelBehavior:
-      NavigationDestinationLabelBehavior.alwaysShow,
+        onDestinationSelected: _onDestinationSelected,
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home, color: Colors.white),
-            label: "Start",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.menu_book, color: Colors.white),
-            label: "Rezepte",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calculate, color: Colors.white),
-            label: "Rechner",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.timer, color: Colors.white),
-            label: "Timer",
-          ),
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Start'),
+          NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Rezepte'),
+          NavigationDestination(icon: Icon(Icons.calculate_outlined), selectedIcon: Icon(Icons.calculate), label: 'Rechner'),
+          NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Timer'),
         ],
       ),
     );
   }
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+// --- HOME PAGE ---
+class HomePage extends StatelessWidget {
+  final Function(int) onNavigateToTab;
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
+  const HomePage({super.key, required this.onNavigateToTab});
 
-class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Mein Sauerteighelfer"),
-        backgroundColor: Colors.brown,
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(title: const Text('Sauerteig-Assistent')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildWelcomeCard(),
+          const SizedBox(height: 24),
+          const Text('Beliebte Rezepte', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          ...data.recipes.take(2).map((recipe) => _buildRecipeCard(context, recipe)),
+          const SizedBox(height: 24),
+          const Text('Schnellzugriff', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          Row(
             children: [
-              // Willkommen-Banner
-              Card(
-                color: Colors.brown.shade100,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "🍞 Willkommen zurück!",
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.brown,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Wähle ein Rezept und backe es Schritt für Schritt mit Hilfe deines persönlichen Timer-Assistenten.",
-                        style: TextStyle(fontSize: 14, color: Colors.brown),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.brown,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () {
-                          // Navigiere zur Rezepte-Seite
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const RecipeListPage(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.menu_book),
-                        label: const Text("Jetzt backen starten!"),
-                      ),
-                    ],
-                  ),
-                ),
+              _buildToolCard(
+                icon: Icons.calculate,
+                title: 'Rechner',
+                color: Colors.teal,
+                onTap: () => onNavigateToTab(2), // Wechselt zum Rechner-Tab
               ),
-              const SizedBox(height: 24),
+              const SizedBox(width: 12),
+              _buildToolCard(
+                icon: Icons.timer,
+                title: 'Timer',
+                color: Colors.orange,
+                onTap: () => onNavigateToTab(3), // Wechselt zum Timer-Tab
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
-              // Schnellzugriff - Beliebte Rezepte
-              const Text(
-                "📖 Beliebte Rezepte",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...data.recipes.take(2).map((recipe) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.cake, color: Colors.brown),
-                      title: Text(recipe.title),
-                      subtitle: Text(recipe.description),
-                      trailing: const Icon(Icons.arrow_forward),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                RecipeDetailPage(recipe: recipe),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                );
-              }),
-              const SizedBox(height: 24),
+  Widget _buildWelcomeCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF7A4A32), Color(0xFFAC7356)]),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('👋 Hallo Bäcker!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+          const SizedBox(height: 8),
+          const Text('Dein Sauerteig wartet schon. Welches Projekt startest du heute?', 
+            style: TextStyle(color: Colors.white70, fontSize: 16)),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () => onNavigateToTab(1), // Zu den Rezepten
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.brown),
+            child: const Text('Alle Rezepte ansehen'),
+          ),
+        ],
+      ),
+    );
+  }
 
-              // Funktions-Übersicht
-              const Text(
-                "⚙️ Functions",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildFeatureCard(
-                    context,
-                    icon: Icons.thermostat,
-                    title: "Temperatur",
-                    subtitle: "Wassertemp berechnen",
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const DoughTemperatureCalculatorPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildFeatureCard(
-                    context,
-                    icon: Icons.calculate,
-                    title: "Rechner",
-                    subtitle: "Zutaten berechnen",
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const IntelligentCalculatorPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildFeatureCard(
-                    context,
-                    icon: Icons.timer,
-                    title: "Timer",
-                    subtitle: "Aktive Timer",
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ActiveTimersPage(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildFeatureCard(
-                    context,
-                    icon: Icons.menu_book,
-                    title: "Rezepte",
-                    subtitle: "Alle Rezepte",
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const RecipeListPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildFeatureCard(
-                    context,
-                    icon: Icons.history,
-                    title: "Backlog",
-                    subtitle: "Dokumentieren",
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const BakingLogPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildFeatureCard(
-                    context,
-                    icon: Icons.info,
-                    title: "Info",
-                    subtitle: "Tipps",
-                    onTap: () {
-                      // Placeholder für zukünftige Erweiterung
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+  Widget _buildRecipeCard(BuildContext context, data.Recipe recipe) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Text(recipe.imageEmoji, style: const TextStyle(fontSize: 32)),
+        title: Text(recipe.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(recipe.description, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailPage(recipe: recipe))),
+      ),
+    );
+  }
 
-              // Tipps-Sektion
-              const Text(
-                "💡 Tipps & Tricks",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildTipCard(
-                "Raumtemperatur beachten",
-                "Eine ideale Gärtemperatur liegt bei 24-28°C. Im Winter musst du nachheizen, im Sommer kühlen.",
-              ),
-              const SizedBox(height: 12),
-              _buildTipCard(
-                "Gluten-Entwicklung",
-                "Durch Dehnen und Falten entwickelt sich das Gluten ohne intensives Kneten.",
-              ),
-              // Instagram-Bereich entfernt
+  Widget _buildToolCard({required IconData icon, required String title, required Color color, required VoidCallback onTap}) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: color.withOpacity(0.3)),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 36, color: color),
+              const SizedBox(height: 8),
+              Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
             ],
           ),
         ),
       ),
     );
   }
-
-  Widget _buildFeatureCard(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: SizedBox(
-        height: 140, // Erhöhte Höhe für alle Funktionskarten, damit kein Overflow entsteht
-        child: Card(
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 32, color: Colors.brown),
-                  const SizedBox(height: 8),
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTipCard(String title, String description) {
-    return Card(
-      color: Colors.amber.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.brown,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              description,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
+// --- RECIPE LIST ---
 class RecipeListPage extends StatelessWidget {
   const RecipeListPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Rezepte"),
-        backgroundColor: Colors.brown,
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: const Text('Brot-Rezepte')),
       body: ListView.builder(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(16),
         itemCount: data.recipes.length,
-        itemBuilder: (context, index) {
-          final recipe = data.recipes[index];
-
+        itemBuilder: (context, i) {
+          final recipe = data.recipes[i];
           return Card(
-            margin: const EdgeInsets.symmetric(vertical: 8),
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.brown.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  recipe.imageEmoji,
-                  style: const TextStyle(fontSize: 24),
-                ),
-              ),
-              title: Text(
-                recipe.title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Text(recipe.description),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: _getDifficultyColor(recipe.difficulty)
-                              .withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          recipe.difficulty,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color:
-                                _getDifficultyColor(recipe.difficulty),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '💧 ${recipe.hydration.toStringAsFixed(0)}%',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '⏱️ ${(recipe.totalMinutes / 60).toStringAsFixed(1)}h',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              trailing: const Icon(Icons.arrow_forward),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        RecipeDetailPage(recipe: recipe),
-                  ),
-                );
-              },
+              leading: Text(recipe.imageEmoji, style: const TextStyle(fontSize: 32)),
+              title: Text(recipe.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(recipe.description),
+              trailing: const Icon(Icons.play_circle_fill, color: Colors.brown, size: 32),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StepTimerPage(recipe: recipe))),
             ),
           );
         },
       ),
     );
   }
-
-  Color _getDifficultyColor(String difficulty) {
-    switch (difficulty) {
-      case 'Anfänger':
-        return Colors.green;
-      case 'Fortgeschrittene':
-        return Colors.orange;
-      case 'Profi':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
 }
 
+// --- RECIPE DETAIL ---
 class RecipeDetailPage extends StatelessWidget {
   final data.Recipe recipe;
-
   const RecipeDetailPage({super.key, required this.recipe});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(recipe.title),
-        backgroundColor: Colors.brown,
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: Text(recipe.title)),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Recipe Header
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.brown.shade50,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        recipe.imageEmoji,
-                        style: const TextStyle(fontSize: 40),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              recipe.title,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              recipe.description,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    recipe.background,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      height: 1.5,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            Center(child: Text(recipe.imageEmoji, style: const TextStyle(fontSize: 80))),
             const SizedBox(height: 20),
-
-            // Recipe Info Row
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoPill(
-                    icon: Icons.info_outline,
-                    label: 'Schwierigkeit',
-                    value: recipe.difficulty,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildInfoPill(
-                    icon: Icons.water_drop,
-                    label: 'Hydration',
-                    value: '${recipe.hydration.toStringAsFixed(0)}%',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildInfoPill(
-                    icon: Icons.schedule,
-                    label: 'Zeit',
-                    value: '${(recipe.totalMinutes / 60).toStringAsFixed(1)}h',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Ingredients Section
-            Text(
-              '📋 Zutaten',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(recipe.description, style: const TextStyle(fontSize: 18, fontStyle: FontStyle.italic)),
+            const Divider(height: 40),
+            const Text('Zutaten', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            Card(
-              color: Colors.blue.shade50,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  recipe.ingredients,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    height: 1.8,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: Text(recipe.ingredients, style: const TextStyle(fontSize: 16, height: 1.6)),
             ),
-            const SizedBox(height: 24),
-
-            // Steps Section
-            Text(
-              '👣 Schritte des Rezepts',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ...recipe.steps.asMap().entries.map((entry) {
-              final index = entry.key;
-              final step = entry.value;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Card(
-                  child: ListTile(
-                    leading: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.brown.shade100,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Icon(
-                          step.icon,
-                          color: Colors.brown,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      '${index + 1}. ${step.title}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        Text(step.description),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(Icons.timer,
-                                size: 14, color: Colors.grey.shade600),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${step.durationMinutes} min',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Icon(Icons.thermostat,
-                                size: 14, color: Colors.grey.shade600),
-                            const SizedBox(width: 4),
-                            Text(
-                              step.temperature,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 24),
-
-            // Start Button
+            const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StepTimerPage(recipe: recipe))),
+                icon: const Icon(Icons.timer),
+                label: const Text('Backvorgang starten'),
                 style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   backgroundColor: Colors.brown,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          StepTimerPage(recipe: recipe),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.play_circle, size: 24),
-                label: const Text(
-                  'Geführten Backmodus starten!',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 20),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildInfoPill({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.brown.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.brown.shade200),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.brown, size: 20),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.brown,
-            ),
-          ),
-        ],
       ),
     );
   }

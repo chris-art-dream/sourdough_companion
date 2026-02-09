@@ -196,7 +196,7 @@ class _DoughTemperatureCalculatorPageState
 
               _buildResultCard(
                 title: '📊 Diehl-Zahl (16h Gärung)',
-                value: '${_diehlNumber!.toStringAsFixed(1)}',
+                value: _diehlNumber!.toStringAsFixed(1),
                 description: 'Standard: 180-200 für Sauerteig',
                 color: Colors.purple,
               ),

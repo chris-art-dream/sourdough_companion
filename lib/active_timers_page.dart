@@ -31,7 +31,12 @@ class _ActiveTimersPageState extends State<ActiveTimersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Aktive Timer")),
+      appBar: AppBar(
+        title: const Text("Aktive Timer"),
+        backgroundColor: Colors.brown,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
       body: timers.isEmpty
           ? const Center(
               child: Text("Keine aktiven Timer"),

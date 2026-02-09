@@ -43,7 +43,7 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('Auto-Advance (nächster Schritt startet automatisch)'),
             value: autoAdvance,
             onChanged: _setAutoAdvance,
-            activeColor: Colors.brown,
+            activeThumbColor: Colors.brown,
           ),
         ],
       ),

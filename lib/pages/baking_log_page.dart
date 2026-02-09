@@ -150,7 +150,7 @@ class _NewBakingLogPageState extends State<NewBakingLogPage> {
   final TextEditingController _resultController = TextEditingController();
 
   int _rating = 3;
-  List<BakingPhoto> _photos = [];
+  final List<BakingPhoto> _photos = [];
 
   @override
   Widget build(BuildContext context) {
