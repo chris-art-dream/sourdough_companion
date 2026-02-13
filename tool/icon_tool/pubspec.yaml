@@ -1,10 +1,27 @@
-name: icon_tool
-description: Tool to generate padded adaptive foreground icon
+name: brot_app
+description: "Eine App für Sauerteig-Liebhaber"
+publish_to: 'none'
+
+version: 1.0.0+1
+
 environment:
-  sdk: ">=2.18.0 <4.0.0"
+  sdk: '>=3.2.3 <4.0.0'
 
 dependencies:
-  image: ^4.0.17
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  intl: ^0.19.0            # Für Uhrzeit/Datum
+  lottie: ^3.1.0          # Für die Animationen
+  shared_preferences: ^2.2.2 # Für das Speichern
 
-executables:
-  pad_icon: bin/pad_icon.dart
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  # Falls du später eigene Lotties/Bilder lokal speicherst, kommen sie hier rein:
+  # assets:
+  #   - assets/

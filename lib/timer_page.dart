@@ -1,16 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-
-// Korrigierte Imports basierend auf deiner Dateistruktur
-import 'timer_service.dart';
-import 'settings_service.dart';
-import 'settings_page.dart';
-import 'timer_model.dart';
-import 'recipe_data.dart' as data;
+import 'recipe_model.dart';
 
 class StepTimerPage extends StatefulWidget {
-  final data.Recipe recipe;
-
+  final Recipe recipe;
   const StepTimerPage({super.key, required this.recipe});
 
   @override
@@ -18,275 +11,253 @@ class StepTimerPage extends StatefulWidget {
 }
 
 class _StepTimerPageState extends State<StepTimerPage> {
-  int currentStepIndex = 0;
-  int remainingSeconds = 0;
-  bool isRunning = false;
-  Timer? timer;
+  int _currentStepIndex = 0;
+  Timer? _timer;
+  int _secondsRemaining = 0;
+  bool _isTimerRunning = false;
 
   @override
-  void initState() {
-    super.initState();
-    _setupStep(0);
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
-  void _setupStep(int index) {
-    if (index >= widget.recipe.steps.length) return;
-    
-    final step = widget.recipe.steps[index];
+  void _startTimer(int minutes) {
+    _timer?.cancel();
     setState(() {
-      currentStepIndex = index;
-      remainingSeconds = step.durationMinutes * 60;
-      isRunning = false;
+      _secondsRemaining = minutes * 60;
+      _isTimerRunning = true;
     });
-    timer?.cancel();
-  }
 
-  void _toggleTimer() {
-    if (isRunning) {
-      _stopTimer();
-    } else {
-      _startTimer();
-    }
-  }
-
-  void _startTimer() {
-    setState(() => isRunning = true);
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (remainingSeconds > 0) {
-        setState(() => remainingSeconds--);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining > 0) {
+        setState(() {
+          _secondsRemaining--;
+        });
       } else {
-        _stopTimer();
-        _showStepFinishedDialog();
+        _timer?.cancel();
+        setState(() => _isTimerRunning = false);
+        _showTimerFinishedDialog();
       }
     });
   }
 
-  void _stopTimer() {
-    timer?.cancel();
-    setState(() => isRunning = false);
-  }
-
-  void _showStepFinishedDialog() {
+  void _showTimerFinishedDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Schritt geschafft! 🥖'),
-        content: const Text('Dein Teig ist bereit für den nächsten Schritt.'),
+        title: const Text("Zeit abgelaufen! 🔔"),
+        content: const Text("Dein Teig hat genug geruht. Weiter geht's zum nächsten Schritt!"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Moment noch', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF7A4A32),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _nextStep();
-            },
-            child: const Text('Weiter'),
+            child: const Text("OK", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7A4A32))),
           ),
         ],
       ),
     );
   }
 
-  void _nextStep() {
-    if (currentStepIndex < widget.recipe.steps.length - 1) {
-      _setupStep(currentStepIndex + 1);
+  // Formatiert Sekunden in hh:mm:ss oder mm:ss
+  String _formatTime(int totalSeconds) {
+    int hours = totalSeconds ~/ 3600;
+    int minutes = (totalSeconds % 3600) ~/ 60;
+    int seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     } else {
-      Navigator.pop(context); // Zurück zur Übersicht, wenn fertig
+      return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
+  }
+
+  // Kurze Textanzeige für die Gesamtdauer
+  String _formatDurationText(int totalMinutes) {
+    int hours = totalMinutes ~/ 60;
+    int minutes = totalMinutes % 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes.toString().padLeft(2, '0')}m';
+    }
+    return '$minutes Min';
   }
 
   @override
   Widget build(BuildContext context) {
-    final step = widget.recipe.steps[currentStepIndex];
-    final progress = (currentStepIndex + 1) / widget.recipe.steps.length;
+    final step = widget.recipe.steps[_currentStepIndex];
+    final progress = (_currentStepIndex + 1) / widget.recipe.steps.length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFDFBFA), // Warmer, ruhiger Hintergrund
+      backgroundColor: const Color(0xFFFCFAF8),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.brown),
+          icon: const Icon(Icons.close, color: Colors.black54),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.brown),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SettingsPage())),
+        title: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey.shade200,
+            color: const Color(0xFF7A4A32),
+            minHeight: 8,
           ),
+        ),
+        actions: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Text("${_currentStepIndex + 1}/${widget.recipe.steps.length}", 
+                style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+            ),
+          )
         ],
       ),
       body: Column(
         children: [
-          // Subtiler Fortschritt
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.brown.withOpacity(0.05),
-              color: Colors.brown.shade200,
-              minHeight: 3,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'SCHRITT ${currentStepIndex + 1} VON ${widget.recipe.steps.length}',
-            style: TextStyle(
-              fontSize: 10, 
-              letterSpacing: 1.5, 
-              color: Colors.brown.withOpacity(0.5),
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
+              padding: const EdgeInsets.all(24.0),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 40),
-                  // Das Icon als visueller Ruhepol
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: Colors.brown.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))
-                      ],
-                    ),
-                    child: Icon(step.icon, size: 40, color: const Color(0xFF7A4A32)),
-                  ),
+                  Text(step.title.toUpperCase(),
+                      style: const TextStyle(letterSpacing: 1.5, fontWeight: FontWeight.bold, color: Color(0xFF7A4A32), fontSize: 13)),
+                  const SizedBox(height: 12),
+                  Text(step.detailedInstructions,
+                      style: const TextStyle(fontSize: 20, height: 1.5, color: Color(0xFF2D1B14))),
                   const SizedBox(height: 32),
                   
-                  // Titel & Anleitung
-                  Text(
-                    step.title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF4E342E)),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    step.detailedInstructions,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 18, height: 1.6, color: Colors.black87),
-                  ),
+                  // TIMER CARD
+                  if (step.durationMinutes > 0)
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 15)],
+                        border: Border.all(color: _isTimerRunning ? const Color(0xFF7A4A32) : Colors.transparent),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("Empfohlene Dauer", style: TextStyle(fontWeight: FontWeight.w500)),
+                              Text(_formatDurationText(step.durationMinutes), style: const TextStyle(color: Colors.grey)),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            _isTimerRunning 
+                                ? _formatTime(_secondsRemaining) 
+                                : _formatTime(step.durationMinutes * 60),
+                            style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, letterSpacing: 2),
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _startTimer(step.durationMinutes),
+                              icon: Icon(_isTimerRunning ? Icons.refresh : Icons.play_arrow),
+                              label: Text(_isTimerRunning ? "Timer neustarten" : "Timer starten"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isTimerRunning ? Colors.grey.shade100 : const Color(0xFF7A4A32),
+                                foregroundColor: _isTimerRunning ? Colors.black87 : Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.all(16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 24),
                   
-                  // Timer-Bereich (nur wenn Dauer > 0)
-                  if (step.durationMinutes > 0) _buildTimerSection(),
+                  // INFO BOX (Nur anzeigen, wenn Technik-Erklärung vorhanden)
+                  if (step.techniqueExplanation != null)
+                    _buildInfoBox("Warum machen wir das?", step.techniqueExplanation!, Icons.lightbulb_outline, Colors.amber.shade800),
                   
-                  if (step.tip.isNotEmpty) _buildTipBox(step.tip),
+                  // Temperatur-Info (Optionaler Check)
+                  if (step.temperature != null) ...[
+                    const SizedBox(height: 16),
+                    _buildInfoBox("Temperatur-Hinweis", "Achte auf eine Umgebungstemperatur von ca. ${step.temperature}.", Icons.thermostat, Colors.blueGrey),
+                  ],
                 ],
               ),
             ),
           ),
-          
-          // Navigation unten
-          _buildBottomBar(currentStepIndex == widget.recipe.steps.length - 1),
+          _buildBottomNav(),
         ],
       ),
     );
   }
 
-  Widget _buildTimerSection() {
-    return GestureDetector(
-      onTap: _toggleTimer,
-      child: Column(
-        children: [
-          Text(
-            _formatSeconds(remainingSeconds),
-            style: const TextStyle(
-              fontSize: 72, 
-              fontWeight: FontWeight.w200, 
-              letterSpacing: -2,
-              color: Color(0xFF4E342E),
-            ),
-          ),
-          Text(
-            isRunning ? 'TIMER LÄUFT' : 'ZUM STARTEN TIPPEN',
-            style: TextStyle(
-              fontSize: 11, 
-              letterSpacing: 1.2, 
-              color: isRunning ? Colors.green : Colors.brown.withOpacity(0.4),
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTipBox(String tip) {
+  Widget _buildInfoBox(String title, String text, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4EFEA),
-        borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: color.withAlpha(10), borderRadius: BorderRadius.circular(20)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [Icon(icon, color: color, size: 18), const SizedBox(width: 8), Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold))]),
+          const SizedBox(height: 8),
+          Text(text, style: TextStyle(color: Colors.grey.shade800, height: 1.4)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: const BoxDecoration(
+        color: Colors.white, 
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))]
       ),
       child: Row(
         children: [
-          const Icon(Icons.lightbulb_outline, color: Colors.orange, size: 20),
+          if (_currentStepIndex > 0)
+            IconButton(
+              onPressed: () {
+                _timer?.cancel();
+                setState(() { 
+                  _currentStepIndex--; 
+                  _isTimerRunning = false; 
+                });
+              },
+              icon: const Icon(Icons.arrow_back_ios_new),
+            ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(tip, style: const TextStyle(fontSize: 14, color: Colors.brown, fontStyle: FontStyle.italic)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomBar(bool isLastStep) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(32, 20, 32, 40),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          if (currentStepIndex > 0)
-            TextButton(
-              onPressed: () => _setupStep(currentStepIndex - 1),
-              child: const Text('Zurück', style: TextStyle(color: Colors.grey, fontSize: 16)),
-            )
-          else
-            const SizedBox(width: 80),
-
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF7A4A32),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-              elevation: 0,
+            child: ElevatedButton(
+              onPressed: () {
+                if (_currentStepIndex < widget.recipe.steps.length - 1) {
+                  _timer?.cancel();
+                  setState(() { 
+                    _currentStepIndex++; 
+                    _isTimerRunning = false; 
+                  });
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7A4A32),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.all(20),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+              ),
+              child: Text(_currentStepIndex < widget.recipe.steps.length - 1 ? "Schritt erledigt" : "Backen abschließen"),
             ),
-            onPressed: isLastStep ? () => Navigator.pop(context) : _nextStep,
-            child: Text(isLastStep ? 'Backen beenden' : 'Nächster Schritt', 
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
-  }
-
-  String _formatSeconds(int seconds) {
-    int m = seconds ~/ 60;
-    int s = seconds % 60;
-    return "$m:${s.toString().padLeft(2, '0')}";
-  }
-
-  @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
   }
 }

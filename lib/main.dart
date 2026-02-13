@@ -1,17 +1,26 @@
+
 import 'package:flutter/material.dart';
 
+
 // DEINE IMPORTS
+import 'recipe_model.dart';
 import 'recipe_data.dart' as data;
 import 'calculator_page.dart';
 import 'active_timers_page.dart';
 import 'timer_page.dart';
+import 'recipe_list_page.dart';
+import 'recipe_detail_page.dart';
+import 'sourdough_page.dart';
+
 
 void main() {
   runApp(const SourdoughApp());
 }
 
+
 class SourdoughApp extends StatelessWidget {
   const SourdoughApp({super.key});
+
 
   @override
   Widget build(BuildContext context) {
@@ -22,12 +31,11 @@ class SourdoughApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF7A4A32),
-          primary: const Color(0xFF7A4A32),
-          surface: const Color(0xFFF7F2EE),
+          surface: const Color(0xFFFCFAF8),
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF7A4A32),
-          foregroundColor: Colors.white,
+          backgroundColor: Color(0xFFFCFAF8),
+          foregroundColor: Color(0xFF2D1B14),
           elevation: 0,
         ),
       ),
@@ -36,153 +44,228 @@ class SourdoughApp extends StatelessWidget {
   }
 }
 
+
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
+
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
+
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
 
-  // Diese Methode erlaubt es Unterseiten, den Tab zu wechseln
-  void _onDestinationSelected(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
-    // Seiten-Liste direkt im Build, damit der Callback übergeben werden kann
-    final List<Widget> _pages = [
-      HomePage(onNavigateToTab: _onDestinationSelected),
+    final List<Widget> pages = [
+      HomePage(onNavigateToTab: (index) => setState(() => _selectedIndex = index)),
       const RecipeListPage(),
       const CalculatorPage(),
       const ActiveTimersPage(),
     ];
 
+
     return Scaffold(
-      // IndexedStack bewahrt den Status (z.B. Eingaben im Rechner) beim Tab-Wechsel
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: _onDestinationSelected,
+        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0xFF7A4A32).withAlpha(30),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Start'),
-          NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Rezepte'),
-          NavigationDestination(icon: Icon(Icons.calculate_outlined), selectedIcon: Icon(Icons.calculate), label: 'Rechner'),
-          NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Timer'),
+          NavigationDestination(icon: Icon(Icons.explore_outlined), label: 'Entdecken'),
+          NavigationDestination(icon: Icon(Icons.menu_book_outlined), label: 'Rezepte'),
+          NavigationDestination(icon: Icon(Icons.calculate_outlined), label: 'Rechner'),
+          NavigationDestination(icon: Icon(Icons.timer_outlined), label: 'Timer'),
         ],
       ),
     );
   }
 }
 
-// --- HOME PAGE ---
+
 class HomePage extends StatelessWidget {
   final Function(int) onNavigateToTab;
-
   const HomePage({super.key, required this.onNavigateToTab});
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sauerteig-Assistent')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          const Text('Beliebte Rezepte', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          ...data.recipes.take(2).map((recipe) => _buildRecipeCard(context, recipe)),
-          const SizedBox(height: 24),
-          const Text('Schnellzugriff', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          Row(
+      backgroundColor: const Color(0xFFFCFAF8),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildToolCard(
-                icon: Icons.calculate,
-                title: 'Rechner',
-                color: Colors.teal,
-                onTap: () => onNavigateToTab(2), // Wechselt zum Rechner-Tab
+              _buildHeader(),
+              const SizedBox(height: 24),
+             
+              // Das Highlight-Rezept (Inspiration)
+              _buildHighlightCard(context, data.recipes[1]), // Zimtschnecken als Eyecatcher
+             
+              const SizedBox(height: 32),
+             
+              // Kategorien statt einfacher Liste
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Kategorien", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    TextButton(
+                      onPressed: () => onNavigateToTab(1),
+                      child: const Text("Alle ansehen", style: TextStyle(color: Color(0xFF7A4A32))),
+                    )
+                  ],
+                ),
               ),
-              const SizedBox(width: 12),
-              _buildToolCard(
-                icon: Icons.timer,
-                title: 'Timer',
-                color: Colors.orange,
-                onTap: () => onNavigateToTab(3), // Wechselt zum Timer-Tab
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 110,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(left: 20),
+                  children: [
+                    _buildCategoryItem("Anfänger", Icons.auto_awesome, Colors.green),
+                    _buildCategoryItem("Süßes", Icons.bakery_dining, Colors.pink),
+                    _buildCategoryItem("Herzhaft", Icons.breakfast_dining, Colors.orange),
+                    _buildCategoryItem("Über Nacht", Icons.nights_stay, Colors.indigo),
+                  ],
+                ),
               ),
+             
+              const SizedBox(height: 32),
+             
+              // Direkte Tools für den Back-Alltag
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: const Text("Schnelle Helfer", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    _buildSmallTool("Mehl-Rechner", Icons.calculate_outlined, Colors.teal, () => onNavigateToTab(2)),
+                    const SizedBox(width: 12),
+                    _buildSmallTool("Brot-Glossar", Icons.menu_book_outlined, Colors.brown, () {}),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 40),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Hallo Bäcker,", style: TextStyle(color: Colors.brown.shade300, fontSize: 16)),
+              const Text("Bereit für heute?",
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2D1B14))),
+            ],
+          ),
+          const CircleAvatar(
+            radius: 25,
+            backgroundColor: Color(0xFF7A4A32),
+            child: Text("S", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          )
         ],
       ),
     );
   }
 
-  Widget _buildWelcomeCard() {
+
+  Widget _buildHighlightCard(BuildContext context, Recipe recipe) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailPage(recipe: recipe))),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        height: 300,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(32),
+          image: const DecorationImage(
+            image: NetworkImage('https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=600'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [Colors.black.withAlpha(180), Colors.transparent],
+            ),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(recipe.title, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(recipe.description, style: const TextStyle(color: Colors.white70, fontSize: 14), maxLines: 2),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildCategoryItem(String title, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      width: 100,
+      margin: const EdgeInsets.only(right: 12),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF7A4A32), Color(0xFFAC7356)]),
-        borderRadius: BorderRadius.circular(28),
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('👋 Hallo Bäcker!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+          Icon(icon, color: color, size: 28),
           const SizedBox(height: 8),
-          const Text('Dein Sauerteig wartet schon. Welches Projekt startest du heute?', 
-            style: TextStyle(color: Colors.white70, fontSize: 16)),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () => onNavigateToTab(1), // Zu den Rezepten
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.brown),
-            child: const Text('Alle Rezepte ansehen'),
-          ),
+          Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2D1B14))),
         ],
       ),
     );
   }
 
-  Widget _buildRecipeCard(BuildContext context, data.Recipe recipe) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Text(recipe.imageEmoji, style: const TextStyle(fontSize: 32)),
-        title: Text(recipe.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(recipe.description, maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailPage(recipe: recipe))),
-      ),
-    );
-  }
 
-  Widget _buildToolCard({required IconData icon, required String title, required Color color, required VoidCallback onTap}) {
+  Widget _buildSmallTool(String title, IconData icon, Color color, VoidCallback onTap) {
     return Expanded(
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: color.withOpacity(0.3)),
+            border: Border.all(color: Colors.grey.shade100),
+            boxShadow: [BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 10)],
           ),
-          child: Column(
+          child: Row(
             children: [
-              Icon(icon, size: 36, color: color),
-              const SizedBox(height: 8),
-              Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+              Icon(icon, color: color, size: 24),
+              const SizedBox(width: 12),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             ],
           ),
         ),
@@ -191,79 +274,3 @@ class HomePage extends StatelessWidget {
   }
 }
 
-// --- RECIPE LIST ---
-class RecipeListPage extends StatelessWidget {
-  const RecipeListPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Brot-Rezepte')),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: data.recipes.length,
-        itemBuilder: (context, i) {
-          final recipe = data.recipes[i];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: ListTile(
-              leading: Text(recipe.imageEmoji, style: const TextStyle(fontSize: 32)),
-              title: Text(recipe.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(recipe.description),
-              trailing: const Icon(Icons.play_circle_fill, color: Colors.brown, size: 32),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StepTimerPage(recipe: recipe))),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// --- RECIPE DETAIL ---
-class RecipeDetailPage extends StatelessWidget {
-  final data.Recipe recipe;
-  const RecipeDetailPage({super.key, required this.recipe});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(recipe.title)),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(child: Text(recipe.imageEmoji, style: const TextStyle(fontSize: 80))),
-            const SizedBox(height: 20),
-            Text(recipe.description, style: const TextStyle(fontSize: 18, fontStyle: FontStyle.italic)),
-            const Divider(height: 40),
-            const Text('Zutaten', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-              child: Text(recipe.ingredients, style: const TextStyle(fontSize: 16, height: 1.6)),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StepTimerPage(recipe: recipe))),
-                icon: const Icon(Icons.timer),
-                label: const Text('Backvorgang starten'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Colors.brown,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
