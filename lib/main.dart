@@ -64,7 +64,7 @@ class _MainNavigationState extends State<MainNavigation> {
       HomePage(onNavigateToTab: (index) => setState(() => _selectedIndex = index)),
       const RecipeListPage(),
       const CalculatorPage(),
-      const ActiveTimersPage(),
+      const SourdoughPage(),
     ];
 
 
@@ -79,7 +79,7 @@ class _MainNavigationState extends State<MainNavigation> {
           NavigationDestination(icon: Icon(Icons.explore_outlined), label: 'Entdecken'),
           NavigationDestination(icon: Icon(Icons.menu_book_outlined), label: 'Rezepte'),
           NavigationDestination(icon: Icon(Icons.calculate_outlined), label: 'Rechner'),
-          NavigationDestination(icon: Icon(Icons.timer_outlined), label: 'Timer'),
+          NavigationDestination(icon: Icon(Icons.bakery_dining_outlined), label: 'Sauerteig'),
         ],
       ),
     );

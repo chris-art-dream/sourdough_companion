@@ -17,40 +17,41 @@ void main(List<String> args) {
     exit(3);
   }
 
-  const int canvasSize = 1024; // target foreground size
-  const double contentRatio = 0.60; // logo occupies 60% of canvas
+  const int canvasSize = 1024;
+  const double contentRatio = 0.60;
 
-  final Image canvas = Image(width: canvasSize, height: canvasSize);
-  // transparent background
-  fill(canvas, color: getColor(0, 0, 0, 0));
+  // Korrektur: In v4 heißt es numChannels, aber der Konstruktor braucht oft explizite Formate
+  final Image canvas = Image(
+    width: canvasSize, 
+    height: canvasSize,
+    numChannels: 4,
+  );
+  
+  // Korrektur: ColorRgba8 ist korrekt, aber wir nutzen direkt das Color-Objekt
+  fill(canvas, color: ColorRgba8(0, 0, 0, 0));
 
-  // compute target size preserving aspect ratio
   final int maxContent = (canvasSize * contentRatio).round();
-  int targetW = src.width;
-  int targetH = src.height;
-  if (targetW > maxContent || targetH > maxContent) {
-    final double scale = (maxContent / (targetW > targetH ? targetW : targetH));
-    targetW = (targetW * scale).round();
-    targetH = (targetH * scale).round();
-  }
+  
+  // Korrektur: Interpolation wird jetzt über das Enum gesteuert
+  final Image resized = copyResize(
+    src, 
+    width: maxContent, 
+    height: maxContent, 
+    interpolation: Interpolation.cubic,
+    maintainAspect: true 
+  );
 
-  final Image resized = copyResize(src, width: targetW, height: targetH, interpolation: Interpolation.cubic);
+  // Zentrieren
+  final int dx = ((canvasSize - resized.width) ~/ 2);
+  final int dy = ((canvasSize - resized.height) ~/ 2);
 
-  // center
-  final int dx = ((canvasSize - resized.width) / 2).round();
-  final int dy = ((canvasSize - resized.height) / 2).round();
+  // Korrektur: compositeImage Parameter heißen in v4 dstX und dstY
+  compositeImage(canvas, resized, dstX: dx, dstY: dy);
 
-  for (int y = 0; y < resized.height; y++) {
-    for (int x = 0; x < resized.width; x++) {
-      final int px = resized.getPixel(x, y);
-      canvas.setPixel(x + dx, y + dy, px);
-    }
-  }
-
-  // ensure output dir exists
+  // Output speichern
   final outFile = File(outPath);
   outFile.createSync(recursive: true);
   outFile.writeAsBytesSync(encodePng(canvas));
 
-  print('Wrote padded foreground icon to $outPath');
+  print('Erfolgreich: Foreground Icon erstellt unter $outPath');
 }
