@@ -1,67 +1,279 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+// Icons für Extras
+const Map<String, String> kExtraIcons = {
+  "Keine": "",
+  "Saaten": "🌻",
+  "Oliven": "🫒",
+  "Tomaten": "🍅",
+  "Zwiebeln": "🧅",
+};
+
+// Hints für Extras (optional, falls benötigt)
+const Map<String, String> kExtraHints = {
+  "Saaten": "z.B. Sonnenblumen, Leinsamen",
+  "Oliven": "entsteint, grob gehackt",
+  "Tomaten": "getrocknet, gewürfelt",
+  "Zwiebeln": "geröstet oder roh",
+};
+// Datenklasse für Rezept-Ergebnisse
+class RecipeResult {
+  final double mainFlour;
+  final double mainWater;
+  final double starterFlour;
+  final double starterWater;
+  final double salt;
+  final double hydrationPercent;
+  final double totalDoughWeight;
+  final double extraWeight;
+  final double extraWater;
+  final double totalFlour;
+  final double totalWater;
+
+  RecipeResult({
+    required this.mainFlour,
+    required this.mainWater,
+    required this.starterFlour,
+    required this.starterWater,
+    required this.salt,
+    required this.hydrationPercent,
+    required this.totalDoughWeight,
+    required this.extraWeight,
+    required this.extraWater,
+    required this.totalFlour,
+    required this.totalWater,
+  });
+}
+
+const double kStarterPercent = 0.20;
+const double kStarterHydration = 1.0; // 1:1
+const double kSaltPercent = 0.02;
+const double kMinStartHour = 6.0;
+
+const Map<String, Map<String, double>> kBaseHydration = {
+  "Weizen": {"405": 0.60, "550": 0.68, "1050": 0.74, "1600": 0.78},
+  "Dinkel": {"630": 0.63, "1050": 0.72},
+  "Roggen": {"997": 0.78, "1150": 0.82, "1370": 0.85},
+  "Vollkorn": {"Weizen": 0.82, "Dinkel": 0.80, "Roggen": 0.88},
+};
+
+const Map<String, double> kExtraLimits = {
+  "Keine": 0.0,
+  "Saaten": 0.10,
+  "Oliven": 0.15,
+  "Tomaten": 0.10,
+  "Zwiebeln": 0.10,
+};
+
+class TimelineStep {
+  final String title;
+  final String description;
+  final DateTime time;
+  final String? amounts;
+
+  TimelineStep({
+    required this.title,
+    required this.description,
+    required this.time,
+    this.amounts,
+  });
+}
+
+class BakerCalculator {
+  // Neu: Rein für die Logik
+  static double calculateFlourFromStarter(double availableStarter) {
+    if (availableStarter <= 0) return 0;
+    return ((availableStarter / 2) / (kStarterPercent / 2)) - (availableStarter / 2);
+  }
+
+  static RecipeResult calculate({
+    required double flour,
+    required String flourType,
+    required String flourSpec,
+    required String extra,
+  }) {
+    final double baseHydration = kBaseHydration[flourType]?[flourSpec] ?? 0.70;
+    final double starterTotal = flour * kStarterPercent;
+    final double starterFlour = starterTotal / 2;
+    final double starterWater = starterTotal / 2;
+    final double totalFlour = flour + starterFlour;
+    double targetTotalWater = totalFlour * baseHydration;
+    double mainWater = targetTotalWater - starterWater;
+
+    final double extraLimit = kExtraLimits[extra] ?? 0.0;
+    final double extraWeight = flour * extraLimit;
+    double extraWater = 0.0;
+    if (extra == "Saaten") {
+      extraWater = extraWeight * 1.0;
+      mainWater += extraWater;
+    } else if (extra == "Oliven") {
+      mainWater -= extraWeight * 0.3;
+    } else if (extra == "Tomaten") {
+      mainWater -= extraWeight * 0.5;
+    } else if (extra == "Zwiebeln") {
+      mainWater -= extraWeight * 0.2;
+    }
+
+    final double salt = flour * kSaltPercent;
+    final double totalWater = mainWater + starterWater;
+    final double hydrationPercent = totalFlour > 0 ? (totalWater / totalFlour) * 100 : 0;
+    final double totalDoughWeight = totalFlour + totalWater + salt + extraWeight;
+
+    return RecipeResult(
+      mainFlour: flour,
+      mainWater: mainWater,
+      starterFlour: starterFlour,
+      starterWater: starterWater,
+      salt: salt,
+      hydrationPercent: hydrationPercent,
+      totalDoughWeight: totalDoughWeight,
+      extraWeight: extraWeight,
+      extraWater: extraWater,
+      totalFlour: totalFlour,
+      totalWater: totalWater,
+    );
+  }
+
+  static List<TimelineStep> generateTimeline({
+    required RecipeResult result,
+    required String flourType,
+    required String extra,
+    required DateTime targetTime,
+    required bool isSameDay,
+  }) {
+    final List<Map<String, dynamic>> template = _getTimelineTemplate(flourType, isSameDay);
+    DateTime firstStepTime = targetTime.add(Duration(hours: template.first['t'] as int));
+    if (firstStepTime.hour < kMinStartHour) {
+      final diff = kMinStartHour - firstStepTime.hour;
+      final shift = Duration(hours: diff.ceil());
+      firstStepTime = firstStepTime.add(shift);
+    }
+    final DateTime adjustedTargetTime = targetTime.add(firstStepTime.difference(targetTime.add(Duration(hours: template.first['t'] as int))));
+
+    List<TimelineStep> steps = [];
+    // Extras: Saaten einweichen als eigenen Schritt
+    if (extra == "Saaten" && result.extraWeight > 0) {
+      final DateTime einweichTime = adjustedTargetTime.add(Duration(hours: template.first['t'] as int) - Duration(hours: 1));
+      steps.add(TimelineStep(
+        title: "Saaten einweichen",
+        description: "Saaten mindestens 1h vorher einweichen. Einweichwasser: ${result.extraWater.toInt()}g",
+        time: einweichTime,
+        amounts: "Saaten: ${result.extraWeight.toInt()}g, Wasser: ${result.extraWater.toInt()}g",
+      ));
+    }
+    for (final step in template) {
+      final DateTime stepTime = adjustedTargetTime.add(Duration(hours: step['t'] as int));
+      String? amounts;
+      String desc = step['d'];
+      if (step['title'] == "Sauerteig füttern") {
+        desc += "\nSauerteig ansetzen, reifen lassen bis verdoppelt (4–8h bei 25–28°C, aktiv und blubbernd verwenden).";
+        amounts = "Sauerteig: ${(result.starterFlour + result.starterWater).toInt()}g";
+      } else if (step['title'] == "Autolyse & Hauptteig" || step['title'] == "Hauptteig mischen") {
+        amounts = "Mehl: ${result.mainFlour.toInt()}g, Wasser: ${result.mainWater.toInt()}g, Salz: ${result.salt.toInt()}g";
+        if (result.extraWeight > 0) {
+          amounts += ", $extra: ${result.extraWeight.toInt()}g";
+          if (extra == "Saaten" && result.extraWater > 0) {
+            amounts += ", Einweichwasser: ${result.extraWater.toInt()}g";
+          }
+        }
+      } else if (step['title'] == "Dehnen & Falten") {
+        desc = "Dehnen & Falten: 3x im Abstand von 30 Minuten. Teig an einer Seite greifen, langziehen und über den Teig schlagen. Schüssel drehen, wiederholen, bis alle Seiten gedehnt wurden. Nach jedem D&F Teig abgedeckt ruhen lassen.";
+      } else if (step['title'] == "Backen") {
+        amounts = "Ofen vorheizen & Brot backen";
+      }
+      steps.add(TimelineStep(title: step['title'], description: desc, time: stepTime, amounts: amounts));
+    }
+    return steps;
+  }
+
+  static List<Map<String, dynamic>> _getTimelineTemplate(String flourType, bool isSameDay) {
+    if (flourType == "Weizen") {
+        return isSameDay
+          ? [{"t": -8, "title": "Sauerteig füttern", "d": "Dein Starter braucht jetzt Energie."}, {"t": -4, "title": "Autolyse & Hauptteig", "d": "Mehl & Wasser mischen, dann Sauerteig zugeben."}, {"t": -3, "title": "Dehnen & Falten", "d": "Teig kräftig dehnen für Struktur."}, {"t": -2, "title": "Formen", "d": "Vorsichtig Spannung aufbauen."}, {"t": -1, "title": "Backen", "d": "Ofen volle Hitze (250°C)."}]
+          : [{"t": -24, "title": "Sauerteig füttern", "d": "Aktiviere deinen Starter."}, {"t": -20, "title": "Autolyse & Hauptteig", "d": "Mehl & Wasser mischen, dann Sauerteig zugeben."}, {"t": -18, "title": "Dehnen & Falten", "d": "Teig kräftig dehnen für Struktur."}, {"t": -3, "title": "Formen", "d": "Gärkörbchen vorbereiten."}, {"t": -2, "title": "Kalte Gare", "d": "Ab in den Kühlschrank für das Aroma."}, {"t": -1, "title": "Backen", "d": "Ofen auf 250°C vorheizen.\n10–15 Min anbacken, dann auf 220°C reduzieren.\nGesamt ca. 45 Min."}];
+    } else if (flourType == "Dinkel") {
+        return isSameDay
+          ? [{"t": -8, "title": "Sauerteig füttern", "d": "Dinkelstarter auffrischen."}, {"t": -4, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig sanft mischen."}, {"t": -3, "title": "Kneten (kurz)", "d": "Dinkel nur kurz kneten!"}, {"t": -2, "title": "Formen", "d": "Sanft formen, wenig Spannung."}, {"t": -1, "title": "Backen", "d": "Ofen auf 230°C vorheizen."}]
+          : [{"t": -24, "title": "Sauerteig füttern", "d": "Dinkelstarter auffrischen."}, {"t": -20, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig sanft mischen."}, {"t": -18, "title": "Kneten (kurz)", "d": "Dinkel nur kurz kneten!"}, {"t": -3, "title": "Formen", "d": "Sanft formen, wenig Spannung."}, {"t": -2, "title": "Kalte Gare", "d": "Über Nacht im Kühlschrank."}, {"t": -1, "title": "Backen", "d": "Ofen auf 240°C vorheizen."}];
+    } else if (flourType == "Roggen") {
+        return isSameDay
+          ? [{"t": -10, "title": "Sauerteig füttern", "d": "Roggenstarter auffrischen."}, {"t": -6, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig gut verrühren."}, {"t": -4, "title": "Teigruhe", "d": "Roggen braucht Zeit zum Quellen."}, {"t": -2, "title": "Formen", "d": "Teig in Form bringen."}, {"t": -1, "title": "Backen", "d": "Ofen auf 240°C vorheizen."}]
+          : [{"t": -28, "title": "Sauerteig füttern", "d": "Roggenstarter auffrischen."}, {"t": -24, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig gut verrühren."}, {"t": -20, "title": "Teigruhe", "d": "Roggen braucht Zeit zum Quellen."}, {"t": -3, "title": "Formen", "d": "Teig in Form bringen."}, {"t": -2, "title": "Kalte Gare", "d": "Über Nacht im Kühlschrank."}, {"t": -1, "title": "Backen", "d": "Ofen auf 240°C vorheizen."}];
+    }
+    return [{"t": -8, "title": "Sauerteig füttern", "d": "Starter auffrischen."}, {"t": -4, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig mischen."}, {"t": -2, "title": "Formen", "d": "Teig formen."}, {"t": -1, "title": "Backen", "d": "Ofen vorheizen."}];
+  }
+}
 
 class CalculatorPage extends StatefulWidget {
   const CalculatorPage({super.key});
-
   @override
   State<CalculatorPage> createState() => _CalculatorPageState();
 }
 
 class _CalculatorPageState extends State<CalculatorPage> {
-  double? _totalFlour;
+  final TextEditingController _flourController = TextEditingController();
+
+  double? _mainFlour;
   String _flourType = "Weizen";
-  String _selectedType = "550"; 
+  String _flourSpec = "550";
   String _selectedExtra = "Keine";
-  bool _isSameDay = false; 
-  final Map<int, bool> _stepsDone = {};
+  bool _isSameDay = false;
+  DateTime _targetTime = DateTime.now().add(const Duration(days: 1)).copyWith(hour: 12, minute: 0, second: 0, millisecond: 0, microsecond: 0);
 
-  DateTime _targetTime = DateTime.now().add(const Duration(days: 1)).copyWith(
-      hour: 12, minute: 0, second: 0, millisecond: 0);
+  RecipeResult? _result;
+  List<TimelineStep> _timeline = [];
 
-  final Map<String, Map<String, double>> _mehlDetails = {
-    "Weizen": {"405": 0.60, "550": 0.68, "1050": 0.74, "1600": 0.78},
-    "Dinkel": {"630": 0.63, "1050": 0.72},
-    "Roggen": {"997": 0.78, "1150": 0.82, "1370": 0.85},
-    "Vollkorn": {"Weizen": 0.82, "Dinkel": 0.80, "Roggen": 0.88},
-  };
+  void _recalculate() {
+    final flour = _mainFlour ?? 0.0;
+    final result = BakerCalculator.calculate(flour: flour, flourType: _flourType, flourSpec: _flourSpec, extra: _selectedExtra);
+    final timeline = BakerCalculator.generateTimeline(result: result, flourType: _flourType, extra: _selectedExtra, targetTime: _targetTime, isSameDay: _isSameDay);
+    setState(() { _result = result; _timeline = timeline; });
+  }
 
-  final Map<String, double> _extraLimits = {
-    "Keine": 0.0, "Saaten": 0.20, "Oliven": 0.15, "Tomaten": 0.10, "Zwiebeln": 0.10,
-  };
+  // NEU: Nur diese Funktion für den "Waage"-Button hinzugefügt
+  void _showStarterRestDialog() {
+    double rest = 0;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Sauerteig-Rest verwerten"),
+        content: TextField(
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: "Vorhandener Sauerteig (g)"),
+          onChanged: (v) => rest = double.tryParse(v) ?? 0,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Abbrechen")),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _mainFlour = BakerCalculator.calculateFlourFromStarter(rest);
+                _flourController.text = _mainFlour!.toInt().toString();
+                _recalculate();
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text("Berechnen"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _recalculate();
+  }
 
   String _weekday(DateTime date) {
     const map = {"Mon": "Mo", "Tue": "Di", "Wed": "Mi", "Thu": "Do", "Fri": "Fr", "Sat": "Sa", "Sun": "So"};
     return map[DateFormat("EEE").format(date)] ?? "";
   }
 
-  String _formatTimelineDate(DateTime time) {
-    final now = DateTime.now();
-    if (now.day == time.day && now.month == time.month && now.year == time.year) {
-      return "Heute • ${DateFormat("HH:mm").format(time)}";
-    }
-    return "${_weekday(time)}, ${DateFormat("dd.MM.").format(time)} • ${DateFormat("HH:mm").format(time)}";
-  }
-
   @override
   Widget build(BuildContext context) {
-    final double flour = _totalFlour ?? 0.0;
-    final double extraWeight = flour * (_extraLimits[_selectedExtra] ?? 0);
-    bool needsSoak = _selectedExtra == "Saaten" || _selectedExtra == "Tomaten";
-    final double baseHydration = _mehlDetails[_flourType]?[_selectedType] ?? 0.70;
-    final double waterBase = flour * baseHydration;
-    final double extraWater = needsSoak ? extraWeight : 0.0;
-    final double sourdough = flour * 0.20;
-    final double sourdoughFlour = sourdough / 2;
-    final double sourdoughWater = sourdough / 2;
-    final double netFlour = flour - sourdoughFlour;
-    final double netWater = waterBase - sourdoughWater;
-    final double totalFlourForCalc = netFlour + sourdoughFlour;
-    final double totalWaterForCalc = netWater + sourdoughWater;
-    final double doughHydration = totalFlourForCalc > 0 
-        ? (totalWaterForCalc / totalFlourForCalc).toDouble() 
-        : 0.0;
-    final double salt = flour * 0.02;
+    final result = _result;
     return Scaffold(
       backgroundColor: const Color(0xFFFCFAF8),
       appBar: AppBar(
@@ -69,42 +281,26 @@ class _CalculatorPageState extends State<CalculatorPage> {
         foregroundColor: const Color(0xFF4A2C1E),
         elevation: 0,
         title: const Text("Brot-Designer", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24)),
+        actions: [
+          IconButton(onPressed: _showStarterRestDialog, icon: const Icon(Icons.scale_outlined, color: Color(0xFF7A4A32))),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text("Gib deine Zutat ein", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF4A2C1E), letterSpacing: -0.5)),
-                  SizedBox(height: 8),
-                  Text("Ich berechne automatisch die passende Hydration und passende extras", style: TextStyle(fontSize: 14, color: Colors.brown, fontWeight: FontWeight.w400)),
-                ],
-              ),
-            ),
-            _buildMainInputCard(extraWeight),
+            _buildMainInputCard(),
             const SizedBox(height: 24),
-            if (flour > 0) _buildResultCard(netWater, extraWater, sourdough, salt, doughHydration, needsSoak, extraWeight),
-            const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text("Wann soll dein Brot fertig sein?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF4A2C1E), letterSpacing: -0.5)),
-                  SizedBox(height: 8),
-                  Text("Ich plane die Schritte automatisch für dich", style: TextStyle(fontSize: 14, color: Colors.brown, fontWeight: FontWeight.w400)),
-                ],
-              ),
-            ),
             _buildTimePickerCard(),
             _buildModeToggle(),
             const SizedBox(height: 32),
-            _buildTimeline(doughHydration),
+            if (result != null) ...[
+              _buildWarningIfPast(),
+              _buildTimeline(_timeline),
+              const SizedBox(height: 32),
+              _buildSummaryCard(result),
+            ],
             const SizedBox(height: 60),
           ],
         ),
@@ -112,209 +308,103 @@ class _CalculatorPageState extends State<CalculatorPage> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF4A2C1E), letterSpacing: -0.5)),
-    );
+  Widget _buildWarningIfPast() {
+    if (_timeline.isEmpty) return const SizedBox.shrink();
+    final firstStep = _timeline.first;
+    if (firstStep.time.isBefore(DateTime.now())) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.orange.shade200)),
+        child: Row(children: [
+          const Icon(Icons.cake_outlined, color: Colors.orange, size: 28),
+          const SizedBox(width: 12),
+          Expanded(child: Text("Hoppla! Dein Zeitplan startet in der Vergangenheit.", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w600))),
+        ]),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
-  Widget _buildMainInputCard(double extraWeight) {
+  Widget _buildMainInputCard() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white, 
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, 4))]
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, 4))]),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text("Wie viel Mehl nutzt du insgesamt? (g)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Color(0xFF4A2C1E))),
+          const SizedBox(height: 8),
           TextField(
-            decoration: _inputDecoration("Wie viel Mehl nutzt du insgesamt? (g)"),
+            controller: _flourController,
+            decoration: _inputDecoration(''),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             keyboardType: TextInputType.number,
-            onChanged: (v) => setState(() => _totalFlour = double.tryParse(v)),
+            onChanged: (v) { _mainFlour = double.tryParse(v); _recalculate(); },
           ),
           const SizedBox(height: 24),
           const Text("GETREIDEART", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown)),
           const SizedBox(height: 8),
-          _buildModernChipRow(_mehlDetails.keys.toList(), _flourType, (val) {
-             setState(() {
-                _flourType = val;
-                _selectedType = _mehlDetails[val]!.keys.first;
-              });
+          _buildModernChipRow(kBaseHydration.keys.toList(), _flourType, (val) {
+            setState(() { _flourType = val; _flourSpec = kBaseHydration[val]!.keys.first; _recalculate(); });
           }),
           const SizedBox(height: 20),
           const Text("TYPE / SPEZIFIKATION", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown)),
           const SizedBox(height: 8),
-          _buildModernChipRow(_mehlDetails[_flourType]!.keys.toList(), _selectedType, (val) {
-             setState(() => _selectedType = val);
+          _buildModernChipRow(kBaseHydration[_flourType]!.keys.toList(), _flourSpec, (val) {
+            setState(() { _flourSpec = val; _recalculate(); });
           }, small: true),
           const SizedBox(height: 20),
-          // Extras-Auswahl direkt hier einbauen
-          _buildExtraPicker(extraWeight),
+          _buildExtraPicker(),
         ],
       ),
     );
   }
 
   Widget _buildModernChipRow(List<String> items, String selectedItem, Function(String) onSelect, {bool small = false}) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: items.map((item) {
-        bool isSelected = selectedItem == item;
-        return InkWell(
-          onTap: () => onSelect(item),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: EdgeInsets.symmetric(horizontal: small ? 12 : 16, vertical: small ? 8 : 10),
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF7A4A32) : const Color(0xFFF7F2EE),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(item, style: TextStyle(
-              color: isSelected ? Colors.white : const Color(0xFF4A2C1E),
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-              fontSize: small ? 12 : 14,
-            )),
-          ),
-        );
-      }).toList(),
-    );
+    return Wrap(spacing: 8, runSpacing: 8, children: items.map((item) {
+      bool isSelected = selectedItem == item;
+      return InkWell(
+        onTap: () => onSelect(item),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.symmetric(horizontal: small ? 12 : 16, vertical: small ? 8 : 10),
+          decoration: BoxDecoration(color: isSelected ? const Color(0xFF7A4A32) : const Color(0xFFF7F2EE), borderRadius: BorderRadius.circular(12)),
+          child: Text(item, style: TextStyle(color: isSelected ? Colors.white : const Color(0xFF4A2C1E), fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, fontSize: small ? 12 : 14)),
+        ),
+      );
+    }).toList());
   }
 
   InputDecoration _inputDecoration(String label) => InputDecoration(
     labelText: label, filled: true, fillColor: const Color(0xFFF7F2EE).withOpacity(0.5),
-    labelStyle: const TextStyle(color: Colors.brown, fontWeight: FontWeight.w500),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
     focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF7A4A32), width: 2)),
   );
 
-  Widget _buildExtraPicker(double weight) {
-    final Map<String, String> extraIcons = {
-      "Keine": "➖",
-      "Saaten": "🌻",
-      "Oliven": "🫒",
-      "Tomaten": "🍅",
-      "Zwiebeln": "🧅",
-    };
-    final Map<String, String> extraHints = {
-      "Keine": "Ohne weitere Zutaten",
-      "Saaten": "Vorher einweichen empfohlen",
-      "Oliven": "In Scheiben schneiden",
-      "Tomaten": "Getrocknet oder frisch",
-      "Zwiebeln": "Angedünstet oder roh",
-    };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text("Möchtest du noch etwas hinzufügen?", style: TextStyle(fontSize: 14, color: Colors.black54)),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          value: _selectedExtra,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: const Color(0xFFF7F2EE).withOpacity(0.5),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF7A4A32)),
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF4A2C1E)),
-          onChanged: (val) => setState(() => _selectedExtra = val ?? "Keine"),
-          items: _extraLimits.keys.map((item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Row(
-                children: [
-                  Text(extraIcons[item] ?? "", style: const TextStyle(fontSize: 20)),
-                  const SizedBox(width: 10),
-                  Text(item),
-                  if (extraHints[item] != null && extraHints[item]!.isNotEmpty) ...[
-                    const SizedBox(width: 10),
-                    Text(extraHints[item]!, style: const TextStyle(fontSize: 11, color: Colors.brown)),
-                  ]
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildResultCard(double nw, double ew, double sd, double s, double hyd, bool soak, double exW) {
-    String haptik = "Der Teig wird fest und stabil sein.";
-    if (hyd > 0.75) haptik = "Der Teig wird sehr weich und klebrig – nimm eine Teigkarte!";
-    if (hyd > 0.68 && hyd <= 0.75) haptik = "Der Teig ist geschmeidig und lässt sich gut dehnen.";
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFFE9D7CC), Color(0xFFD8C3B6)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(28),
+  Widget _buildExtraPicker() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text("Möchtest du noch etwas hinzufügen?", style: TextStyle(fontSize: 14, color: Colors.black54)),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(
+        value: _selectedExtra,
+        decoration: InputDecoration(filled: true, fillColor: const Color(0xFFF7F2EE).withOpacity(0.5), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
+        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF7A4A32)),
+        onChanged: (val) { setState(() { _selectedExtra = val ?? "Keine"; _recalculate(); }); },
+        items: kExtraLimits.keys.map((item) => DropdownMenuItem(value: item, child: Row(children: [Text(kExtraIcons[item] ?? ""), const SizedBox(width: 10), Text(item)]))).toList(),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-        _resRow("Hauptwasser", "${nw.toInt()} g"),
-        if (exW > 0) _resRow(_selectedExtra, "${exW.toInt()} g"),
-        if (ew > 0) _resRow("Einweichwasser", "${ew.toInt()} g"),
-        _resRow("Sauerteig (1:1)", "${sd.toInt()} g"),
-        _resRow("Salz", "${s.toInt()} g"),
-        const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(color: Colors.white38)),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text("Hydration", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(8)),
-              child: Text("${(hyd * 100).toInt()}%", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: Color(0xFF4A2C1E))),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text("Hinweis: $haptik", style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Color(0xFF4A2C1E))),
-      ]),
-    );
+    ]);
   }
-
-  Widget _resRow(String l, String v) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(l, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF4A2C1E))), 
-      Text(v, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF4A2C1E)))
-    ]),
-  );
 
   Widget _buildModeToggle() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          margin: const EdgeInsets.only(top: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFD8C3B6).withOpacity(0.3))),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Row(children: [
-              Icon(_isSameDay ? Icons.wb_sunny_rounded : Icons.ac_unit_rounded, size: 20, color: _isSameDay ? Colors.orange : Colors.blue),
-              const SizedBox(width: 12),
-              Text(_isSameDay ? "Same-Day Modus" : "Übernachtgare", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            ]),
-            Switch(value: _isSameDay, activeColor: const Color(0xFF7A4A32), onChanged: (v) => setState(() => _isSameDay = v)),
-          ]),
-        ),
-        const SizedBox(height: 6),
-        Padding(
-          padding: EdgeInsets.only(left: 8, right: 8),
-          child: Text(
-            "Übernachtgare: Der Teig geht über Nacht im Kühlschrank. Perfekt, wenn du abends vorbereiten und morgens frisch backen möchtest. Im Same-Day Modus wird alles an einem Tag erledigt.",
-            style: TextStyle(fontSize: 13, color: Color(0xFF4A2C1E)),
-          ),
-        ),
-      ],
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFD8C3B6).withOpacity(0.3))),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(_isSameDay ? "Same-Day Modus" : "Übernachtgare", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        Switch(value: _isSameDay, activeColor: const Color(0xFF7A4A32), onChanged: (v) { setState(() { _isSameDay = v; _recalculate(); }); }),
+      ]),
     );
   }
 
@@ -325,10 +415,11 @@ class _CalculatorPageState extends State<CalculatorPage> {
         if (d == null) return;
         final t = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_targetTime));
         if (t == null) return;
-        setState(() { _targetTime = DateTime(d.year, d.month, d.day, t.hour, t.minute); _stepsDone.clear(); });
+        setState(() { _targetTime = DateTime(d.year, d.month, d.day, t.hour, t.minute); _recalculate(); });
       },
       child: Container(
-        padding: const EdgeInsets.all(20), width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        width: double.infinity,
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFD8C3B6).withOpacity(0.5))),
         child: Row(children: [
           const Icon(Icons.calendar_today_rounded, size: 20, color: Color(0xFF7A4A32)),
@@ -341,132 +432,45 @@ class _CalculatorPageState extends State<CalculatorPage> {
     );
   }
 
-  Widget _buildTimeline(double hydration) {
-    final now = DateTime.now();
-    List<Map<String, dynamic>> steps;
-    if (_flourType == "Weizen") {
-      steps = _isSameDay
-          ? [
-              {"id": 0, "t": -8, "title": "Sauerteig füttern", "d": "Dein Starter braucht jetzt Energie."},
-              {"id": 1, "t": -4, "title": "Autolyse & Hauptteig", "d": "Mehl & Wasser mischen, dann Sauerteig zugeben."},
-              {"id": 2, "t": -3, "title": "Dehnen & Falten", "d": "Teig kräftig dehnen für Struktur."},
-              {"id": 3, "t": -2, "title": "Formen", "d": "Vorsichtig Spannung aufbauen."},
-              {"id": 4, "t": -1, "title": "Backen", "d": "Ofen volle Hitze (250°C)."},
-            ]
-          : [
-              {"id": 0, "t": -24, "title": "Sauerteig füttern", "d": "Aktiviere deinen Starter."},
-              {"id": 1, "t": -20, "title": "Autolyse & Hauptteig", "d": "Mehl & Wasser mischen, dann Sauerteig zugeben."},
-              {"id": 2, "t": -18, "title": "Dehnen & Falten", "d": "Teig kräftig dehnen für Struktur."},
-              {"id": 3, "t": -14, "title": "Kalte Gare", "d": "Ab in den Kühlschrank für das Aroma."},
-              {"id": 4, "t": -2, "title": "Formen", "d": "Gärkörbchen vorbereiten."},
-              {"id": 5, "t": -1, "title": "Backen", "d": "Heißer Topf, viel Dampf."},
-            ];
-    } else if (_flourType == "Dinkel") {
-      steps = _isSameDay
-          ? [
-              {"id": 0, "t": -8, "title": "Sauerteig füttern", "d": "Dinkelstarter auffrischen."},
-              {"id": 1, "t": -4, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig sanft mischen."},
-              {"id": 2, "t": -3, "title": "Kneten (kurz)", "d": "Dinkel nur kurz kneten!"},
-              {"id": 3, "t": -2, "title": "Formen", "d": "Sanft formen, wenig Spannung."},
-              {"id": 4, "t": -1, "title": "Backen", "d": "Ofen auf 230°C vorheizen."},
-            ]
-          : [
-              {"id": 0, "t": -24, "title": "Sauerteig füttern", "d": "Dinkelstarter auffrischen."},
-              {"id": 1, "t": -20, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig sanft mischen."},
-              {"id": 2, "t": -18, "title": "Kneten (kurz)", "d": "Dinkel nur kurz kneten!"},
-              {"id": 3, "t": -14, "title": "Kalte Gare", "d": "Über Nacht im Kühlschrank."},
-              {"id": 4, "t": -2, "title": "Formen", "d": "Sanft formen, wenig Spannung."},
-              {"id": 5, "t": -1, "title": "Backen", "d": "Ofen auf 230°C vorheizen."},
-            ];
-    } else if (_flourType == "Roggen") {
-      steps = _isSameDay
-          ? [
-              {"id": 0, "t": -10, "title": "Sauerteig füttern", "d": "Roggenstarter auffrischen."},
-              {"id": 1, "t": -6, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig gut verrühren."},
-              {"id": 2, "t": -4, "title": "Teigruhe", "d": "Roggen braucht Zeit zum Quellen."},
-              {"id": 3, "t": -2, "title": "Formen", "d": "Teig in Form bringen."},
-              {"id": 4, "t": -1, "title": "Backen", "d": "Ofen auf 240°C vorheizen."},
-            ]
-          : [
-              {"id": 0, "t": -28, "title": "Sauerteig füttern", "d": "Roggenstarter auffrischen."},
-              {"id": 1, "t": -24, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig gut verrühren."},
-              {"id": 2, "t": -20, "title": "Teigruhe", "d": "Roggen braucht Zeit zum Quellen."},
-              {"id": 3, "t": -14, "title": "Kalte Gare", "d": "Über Nacht im Kühlschrank."},
-              {"id": 4, "t": -2, "title": "Formen", "d": "Teig in Form bringen."},
-              {"id": 5, "t": -1, "title": "Backen", "d": "Ofen auf 240°C vorheizen."},
-            ];
-    } else {
-      // Default (wie bisher)
-      steps = _isSameDay
-          ? [
-              {"id": 0, "t": -8, "title": "Sauerteig füttern", "d": "Dein Starter braucht jetzt Energie."},
-              {"id": 1, "t": -4, "title": "Hauptteig mischen", "d": "Mehl, Wasser & Sauerteig vereinen."},
-              {"id": 2, "t": -2, "title": "Formen", "d": "Vorsichtig Spannung aufbauen."},
-              {"id": 3, "t": -1, "title": "Backen", "d": "Ofen volle Hitze (250°C)."},
-            ]
-          : [
-              {"id": 0, "t": -24, "title": "Sauerteig füttern", "d": "Aktiviere deinen Starter."},
-              {"id": 1, "t": -20, "title": "Teig kneten & falten", "d": "Struktur aufbauen durch Dehnen."},
-              {"id": 2, "t": -14, "title": "Kalte Gare", "d": "Ab in den Kühlschrank für das Aroma."},
-              {"id": 3, "t": -2, "title": "Formen", "d": "Gärkörbchen vorbereiten."},
-              {"id": 4, "t": -1, "title": "Backen", "d": "Heißer Topf, viel Dampf."},
-            ];
-    }
-
-    if (_targetTime.add(Duration(hours: (steps[0]['t'] as int))).isBefore(now)) {
-      return _buildTimeTravelCard();
-    }
-
+  Widget _buildTimeline(List<TimelineStep> steps) {
     return Column(children: [
-      const Row(children: [
-        Icon(Icons.auto_awesome_rounded, color: Colors.orangeAccent, size: 20),
-        SizedBox(width: 10),
-        Text("DEIN BACKPLAN", style: TextStyle(color: Color(0xFF4A2C1E), fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1)),
-      ]),
+      const Text("DEIN BACKPLAN", style: TextStyle(color: Color(0xFF4A2C1E), fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1)),
       const SizedBox(height: 24),
-      ...steps.map((s) {
-        final id = s['id'] as int;
-        final time = _targetTime.add(Duration(hours: (s['t'] as int)));
-        final bool isDone = _stepsDone[id] ?? false;
-        final bool isLast = steps.indexOf(s) == steps.length - 1;
-
-        return IntrinsicHeight(child: Row(children: [
-          Column(children: [
-            GestureDetector(
-              onTap: () => setState(() => _stepsDone[id] = !isDone),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(shape: BoxShape.circle, color: isDone ? Colors.green : Colors.white, border: Border.all(color: isDone ? Colors.green : const Color(0xFF7A4A32), width: 2)),
-                child: Icon(isDone ? Icons.check : Icons.circle, size: 10, color: isDone ? Colors.white : const Color(0xFF7A4A32)),
-              ),
-            ),
-            if (!isLast) Expanded(child: Container(width: 2, margin: const EdgeInsets.symmetric(vertical: 4), color: const Color(0xFF7A4A32).withOpacity(0.2)) ),
-          ]),
+      ...steps.map((s) => Padding(
+        padding: const EdgeInsets.only(bottom: 24.0),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.circle, size: 14, color: const Color(0xFF7A4A32)),
           const SizedBox(width: 20),
-          Expanded(child: Opacity(opacity: isDone ? 0.4 : 1.0, child: Padding(
-            padding: const EdgeInsets.only(bottom: 32.0),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_formatTimelineDate(time), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.brown)),
-              const SizedBox(height: 4),
-              Text(s['title'] as String, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, decoration: isDone ? TextDecoration.lineThrough : null, color: const Color(0xFF4A2C1E))),
-              Text(s['d'] as String, style: const TextStyle(fontSize: 14, color: Colors.black54)),
-            ]),
-          ))),
-        ]));
-      }).toList(),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(DateFormat("dd.MM. HH:mm").format(s.time), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.brown)),
+            Text(s.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF4A2C1E))),
+            Text(s.description, style: const TextStyle(fontSize: 14, color: Colors.black54)),
+            if (s.amounts != null) Text(s.amounts!, style: const TextStyle(fontSize: 14, color: Color(0xFF7C5C3B), fontWeight: FontWeight.bold)),
+          ])),
+        ]),
+      )),
     ]);
   }
 
-  Widget _buildTimeTravelCard() => Container(
-    padding: const EdgeInsets.all(24), width: double.infinity,
-    decoration: BoxDecoration(color: const Color(0xFFFDECEA), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.red.withOpacity(0.1))),
-    child: const Column(children: [
-      Icon(Icons.history_toggle_off_rounded, color: Color(0xFFC06C53), size: 36),
-      SizedBox(height: 12),
-      Text("Zeitplan anpassen", style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFC06C53), fontSize: 18)),
-      SizedBox(height: 6),
-      Text("Verschiebe die Zielzeit, damit wir genug Vorlauf für den Teig haben.", textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Colors.black87)),
-    ]),
-  );
+  Widget _buildSummaryCard(RecipeResult result) {
+    return Card(
+      color: const Color(0xFFF5E9E0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
+        Text("${result.hydrationPercent.toStringAsFixed(1)}%", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 28)),
+        const Text("Hydration"),
+        const SizedBox(height: 16),
+          _resRow("Mehl", "${result.mainFlour.toInt()} g"),
+          _resRow("Hauptwasser", "${result.mainWater.toInt()} g"),
+          if (result.extraWeight > 0) _resRow(_selectedExtra, "${result.extraWeight.toInt()} g"),
+          if (result.extraWater > 0 && _selectedExtra == "Saaten") _resRow("Einweichwasser", "${result.extraWater.toInt()} g"),
+          _resRow("Sauerteig (1:1)", "${(result.starterFlour + result.starterWater).toInt()} g"),
+          _resRow("Salz", "${result.salt.toInt()} g"),
+        const Divider(),
+        Text("Gesamt: ${result.totalDoughWeight.toInt()} g", style: const TextStyle(fontWeight: FontWeight.bold)),
+      ])),
+    );
+  }
+
+  Widget _resRow(String l, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l), Text(v)]));
 }

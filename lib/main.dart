@@ -1,26 +1,20 @@
-
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
 
-
-// DEINE IMPORTS
-import 'recipe_model.dart';
-import 'recipe_data.dart' as data;
-import 'calculator_page.dart';
-import 'active_timers_page.dart';
-import 'timer_page.dart';
+// Deine Model-Imports (Achte darauf, dass die Pfade stimmen!)
+import 'models/sourdough_starter_model.dart';
 import 'recipe_list_page.dart';
-import 'recipe_detail_page.dart';
+import 'calculator_page.dart';
 import 'sourdough_page.dart';
-
 
 void main() {
   runApp(const SourdoughApp());
 }
 
-
 class SourdoughApp extends StatelessWidget {
   const SourdoughApp({super.key});
-
 
   @override
   Widget build(BuildContext context) {
@@ -44,29 +38,25 @@ class SourdoughApp extends StatelessWidget {
   }
 }
 
-
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
-
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
-
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
 
-
   @override
   Widget build(BuildContext context) {
+    // Liste der Seiten für die Navigation
     final List<Widget> pages = [
       HomePage(onNavigateToTab: (index) => setState(() => _selectedIndex = index)),
       const RecipeListPage(),
       const CalculatorPage(),
       const SourdoughPage(),
     ];
-
 
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: pages),
@@ -86,85 +76,73 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 }
 
-
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   final Function(int) onNavigateToTab;
   const HomePage({super.key, required this.onNavigateToTab});
 
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  List<SourdoughStarter> starters = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStarters();
+  }
+
+  Future<void> _loadStarters() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? data = prefs.getString('sourdough_starters');
+    if (data != null) {
+      try {
+        final List<dynamic> decoded = json.decode(data);
+        setState(() {
+          starters = decoded.map((e) => SourdoughStarter.fromJson(e)).toList();
+          loading = false;
+        });
+      } catch (e) {
+        setState(() => loading = false);
+      }
+    } else {
+      setState(() => loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFCFAF8),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
-             
-              // Das Highlight-Rezept (Inspiration)
-              _buildHighlightCard(context, data.recipes[1]), // Zimtschnecken als Eyecatcher
-             
-              const SizedBox(height: 32),
-             
-              // Kategorien statt einfacher Liste
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text("Kategorien", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    TextButton(
-                      onPressed: () => onNavigateToTab(1),
-                      child: const Text("Alle ansehen", style: TextStyle(color: Color(0xFF7A4A32))),
-                    )
-                  ],
+        child: loading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _loadStarters,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 24),
+                      _buildStarterStatus(),
+                      const SizedBox(height: 24),
+                      _buildQuickActions(),
+                      const SizedBox(height: 24),
+                      _buildReminders(),
+                      const SizedBox(height: 24),
+                      _buildMotivation(),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 110,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(left: 20),
-                  children: [
-                    _buildCategoryItem("Anfänger", Icons.auto_awesome, Colors.green),
-                    _buildCategoryItem("Süßes", Icons.bakery_dining, Colors.pink),
-                    _buildCategoryItem("Herzhaft", Icons.breakfast_dining, Colors.orange),
-                    _buildCategoryItem("Über Nacht", Icons.nights_stay, Colors.indigo),
-                  ],
-                ),
-              ),
-             
-              const SizedBox(height: 32),
-             
-              // Direkte Tools für den Back-Alltag
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: const Text("Schnelle Helfer", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    _buildSmallTool("Mehl-Rechner", Icons.calculate_outlined, Colors.teal, () => onNavigateToTab(2)),
-                    const SizedBox(width: 12),
-                    _buildSmallTool("Brot-Glossar", Icons.menu_book_outlined, Colors.brown, () {}),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
       ),
     );
   }
-
 
   Widget _buildHeader() {
     return Padding(
@@ -175,102 +153,202 @@ class HomePage extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Hallo Bäcker,", style: TextStyle(color: Colors.brown.shade300, fontSize: 16)),
-              const Text("Bereit für heute?",
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2D1B14))),
+              Text("Hallo Bäcker!", style: TextStyle(color: Colors.brown.shade300, fontSize: 16)),
+              const Text("Dein Dashboard", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF2D1B14))),
             ],
           ),
           const CircleAvatar(
             radius: 25,
             backgroundColor: Color(0xFF7A4A32),
-            child: Text("S", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Icon(Icons.person, color: Colors.white),
           )
         ],
       ),
     );
   }
 
-
-  Widget _buildHighlightCard(BuildContext context, Recipe recipe) {
-    return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailPage(recipe: recipe))),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        height: 300,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
-          image: const DecorationImage(
-            image: NetworkImage('https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=600'),
-            fit: BoxFit.cover,
-          ),
-        ),
+  Widget _buildStarterStatus() {
+    if (starters.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(32),
-            gradient: LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [Colors.black.withAlpha(180), Colors.transparent],
-            ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
           ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(recipe.title, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(recipe.description, style: const TextStyle(color: Colors.white70, fontSize: 14), maxLines: 2),
-            ],
-          ),
+          child: const Text("Noch kein Starter angelegt. Geh zum Sauerteig-Tab, um zu starten!"),
         ),
-      ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text("Deine Starter", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(height: 10),
+        ...starters.map((s) => _starterCard(s)).toList(),
+      ],
     );
   }
 
-
-  Widget _buildCategoryItem(String title, IconData icon, Color color) {
+  Widget _starterCard(SourdoughStarter s) {
+    final hunger = _getHungerLevel(s);
+    final status = _getStatus(s);
     return Container(
-      width: 100,
-      margin: const EdgeInsets.only(right: 12),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: status['color'] as Color, width: 1.5),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
-          Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2D1B14))),
+          _buildJarIcon(hunger, status['color'] as Color, status['emoji'] as String),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text("Letzte Fütterung: ${_formatDateTime(s.lastFed)}", style: const TextStyle(fontSize: 12)),
+                Text(status['text'] as String, style: TextStyle(fontSize: 12, color: status['color'] as Color)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: status['color'] as Color),
         ],
       ),
     );
   }
 
-
-  Widget _buildSmallTool(String title, IconData icon, Color color, VoidCallback onTap) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(20),
+  Widget _buildJarIcon(double hunger, Color color, String emoji) {
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      children: [
+        Container(
+          width: 36, height: 48,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.grey.shade100),
-            boxShadow: [BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 10)],
+            color: const Color(0xFFEDE7DE),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color, width: 1),
           ),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(width: 12),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            ],
+        ),
+        Container(
+          width: 36, height: 48 * (1 - hunger),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(10), bottomRight: Radius.circular(10)),
           ),
+        ),
+        Positioned(top: 2, child: Text(emoji, style: const TextStyle(fontSize: 16))),
+      ],
+    );
+  }
+
+  double _getHungerLevel(SourdoughStarter s) {
+    final interval = s.fridgeMode 
+        ? const Duration(days: 6) 
+        : (s.temperature < 18 ? const Duration(hours: 36) : (s.temperature < 22 ? const Duration(hours: 24) : (s.temperature < 25 ? const Duration(hours: 16) : const Duration(hours: 12))));
+    final sinceFed = DateTime.now().difference(s.lastFed);
+    return min(1.0, sinceFed.inSeconds / interval.inSeconds);
+  }
+
+  Map<String, dynamic> _getStatus(SourdoughStarter s) {
+    final hunger = _getHungerLevel(s);
+    if (hunger < 0.7) return {"label": "Aktiv", "emoji": "🌱", "color": const Color(0xFF7A8B6F), "text": "Starter ist vital!"};
+    if (hunger < 1.0) return {"label": "Hungrig", "emoji": "😋", "color": Colors.orange, "text": "Zeit zu füttern!"};
+    return {"label": "Schlapp", "emoji": "🥶", "color": Colors.red, "text": "Braucht dringend Pflege!"};
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final now = DateTime.now();
+    final timeStr = "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) return "Heute, $timeStr Uhr";
+    return "${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}. ${timeStr} Uhr";
+  }
+
+  Widget _buildQuickActions() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => widget.onNavigateToTab(3),
+              icon: const Icon(Icons.bakery_dining_outlined),
+              label: const Text("Füttern"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7A4A32),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => widget.onNavigateToTab(2),
+              icon: const Icon(Icons.calculate_outlined),
+              label: const Text("Rechner"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF7A4A32),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                side: const BorderSide(color: Color(0xFF7A4A32)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReminders() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3CD),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.notifications_active, color: Color(0xFF7A4A32)),
+            SizedBox(width: 12),
+            Expanded(child: Text("Erinnerung: Check heute dein Anstellgut!")),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMotivation() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8D8CF),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.emoji_emotions, color: Color(0xFF7A4A32)),
+            SizedBox(width: 12),
+            Expanded(child: Text("Ein gut gepflegter Starter macht das beste Brot!")),
+          ],
         ),
       ),
     );
   }
 }
-
